@@ -1,0 +1,240 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>3B Elektrik Alan (+ +)</title>
+
+  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+</head>
+
+<body style="margin:0; overflow:hidden;">
+
+<a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
+
+  <a-marker preset="hiro">
+
+    <!-- POZİTİF YÜKLER -->
+    <a-sphere position="-1 0 0" radius="0.12" color="red"></a-sphere>
+    <a-sphere position="1 0 0" radius="0.12" color="red"></a-sphere>
+
+    <!-- SOL POZİTİF ETİKET -->
+    <a-entity position="-1 0.32 0">
+      <a-plane width="0.65" height="0.23" color="black" opacity="0.9"></a-plane>
+      <a-text value="POZİTİF (+)" color="white"
+        align="center" position="0 0 0.02" width="3"></a-text>
+    </a-entity>
+
+    <!-- SAĞ POZİTİF ETİKET -->
+    <a-entity position="1 0.32 0">
+      <a-plane width="0.65" height="0.23" color="black" opacity="0.9"></a-plane>
+      <a-text value="POZİTİF (+)" color="white"
+        align="center" position="0 0 0.02" width="3"></a-text>
+    </a-entity>
+
+    <a-entity id="field"></a-entity>
+
+  </a-marker>
+
+  <a-entity camera></a-entity>
+
+</a-scene>
+
+<script>
+
+const field = document.querySelector("#field");
+
+const charges = [
+  {x:-1,y:0,z:0,q:1},
+  {x: 1,y:0,z:0,q:1}
+];
+
+// 3B ELEKTRİK ALANI
+
+function E(x,y,z){
+
+  let Ex=0,Ey=0,Ez=0;
+
+  charges.forEach(c=>{
+
+    let dx=x-c.x;
+    let dy=y-c.y;
+    let dz=z-c.z;
+
+    let r=Math.sqrt(dx*dx+dy*dy+dz*dz);
+
+    if(r<0.05) return;
+
+    Ex+=c.q*dx/(r*r*r);
+    Ey+=c.q*dy/(r*r*r);
+    Ez+=c.q*dz/(r*r*r);
+  });
+
+  return {Ex,Ey,Ez};
+}
+
+
+// ELEKTRİK ALANI ÇİZGİLERİ
+
+function createLine(x,y,z){
+
+  let points=[];
+
+  for(let i=0;i<250;i++){
+
+    let f=E(x,y,z);
+
+    let Ex=f.Ex,Ey=f.Ey,Ez=f.Ez;
+
+    let mag=Math.sqrt(Ex*Ex+Ey*Ey+Ez*Ez);
+
+    if(mag<0.0001) break;
+
+    let step=0.035;
+
+    let dx=Ex/mag*step;
+    let dy=Ey/mag*step;
+    let dz=Ez/mag*step;
+
+    let nx=x+dx;
+    let ny=y+dy;
+    let nz=z+dz;
+
+    // İKİ KÜRE ARASINDAKİ ÇİZGİLERİ ENGELLE
+    if(
+      nx > -0.88 &&
+      nx < 0.88 &&
+      Math.sqrt(ny*ny+nz*nz) < 0.25
+    ) break;
+
+    // YÜKLERİN YÜZEYİNE GELDİĞİNDE DUR
+    let stop=false;
+
+    for(let c of charges){
+
+      let d=Math.sqrt(
+        (nx-c.x)**2+
+        (ny-c.y)**2+
+        (nz-c.z)**2
+      );
+
+      if(d<0.14){
+        stop=true;
+        break;
+      }
+    }
+
+    if(stop) break;
+
+    // SONSUZ BÖLGE SINIRI
+    if(
+      Math.abs(nx)>5 ||
+      Math.abs(ny)>4 ||
+      Math.abs(nz)>4
+    ) break;
+
+    points.push({x,y,z});
+
+    x=nx;
+    y=ny;
+    z=nz;
+  }
+
+  // ÇİZGİLERİ OLUŞTUR
+
+  for(let i=1;i<points.length;i++){
+
+    let p1=points[i-1];
+    let p2=points[i];
+
+    let line=document.createElement("a-entity");
+
+    line.setAttribute("line",{
+      start:`${p1.x} ${p1.y} ${p1.z}`,
+      end:`${p2.x} ${p2.y} ${p2.z}`,
+      color:"yellow"
+    });
+
+    field.appendChild(line);
+
+    // VEKTÖR OKLARI
+
+    if(i%35===0){
+
+      let dx=p2.x-p1.x;
+      let dy=p2.y-p1.y;
+      let dz=p2.z-p1.z;
+
+      let dir=new AFRAME.THREE.Vector3(dx,dy,dz).normalize();
+
+      let arrow=document.createElement("a-entity");
+
+      let arrowLeft=document.createElement("a-cylinder");
+      arrowLeft.setAttribute("radius","0.002");
+      arrowLeft.setAttribute("height","0.06");
+      arrowLeft.setAttribute("color","yellow");
+      arrowLeft.setAttribute("position","-0.017 -0.015 0");
+      arrowLeft.setAttribute("rotation","0 0 -45");
+
+      let arrowRight=document.createElement("a-cylinder");
+      arrowRight.setAttribute("radius","0.002");
+      arrowRight.setAttribute("height","0.06");
+      arrowRight.setAttribute("color","yellow");
+      arrowRight.setAttribute("position","0.017 -0.015 0");
+      arrowRight.setAttribute("rotation","0 0 45");
+
+      arrow.appendChild(arrowLeft);
+      arrow.appendChild(arrowRight);
+
+      arrow.setAttribute(
+        "position",
+        `${p2.x} ${p2.y} ${p2.z}`
+      );
+
+      let quaternion=new AFRAME.THREE.Quaternion();
+
+      quaternion.setFromUnitVectors(
+        new AFRAME.THREE.Vector3(0,1,0),
+        dir
+      );
+
+      arrow.object3D.quaternion.copy(quaternion);
+
+      field.appendChild(arrow);
+    }
+  }
+}
+
+
+// İKİ POZİTİF YÜKÜN ETRAFINDAN ÇİZGİLER
+
+const startRadius=0.17;
+
+for(let charge of charges){
+
+  for(let theta=0;theta<360;theta+=30){
+
+    for(let phi=-60;phi<=60;phi+=30){
+
+      let t=theta*Math.PI/180;
+      let p=phi*Math.PI/180;
+
+      let x=startRadius*Math.cos(p)*Math.cos(t);
+      let y=startRadius*Math.sin(p);
+      let z=startRadius*Math.cos(p)*Math.sin(t);
+
+      createLine(
+        charge.x+x,
+        y,
+        z
+      );
+    }
+  }
+}
+
+</script>
+
+</body>
+</html>
